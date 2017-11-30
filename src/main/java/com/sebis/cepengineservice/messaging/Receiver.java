@@ -28,4 +28,5 @@ public class Receiver {
         }
         // ToDo process received spans
     }
+
 }
