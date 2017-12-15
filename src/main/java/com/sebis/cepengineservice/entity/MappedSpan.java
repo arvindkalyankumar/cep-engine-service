@@ -21,7 +21,6 @@ public class MappedSpan {
     private Long parentId;
     private Long timestamp;
     private Long duration;
-
     private String annotationKey;
     private String annotationValue;
     private String endpoint;
