@@ -1,21 +1,21 @@
 package com.sebis.cepengineservice.repository;
 
 import com.sebis.cepengineservice.dto.QueryDTO;
+import com.sebis.cepengineservice.dto.QueryResult;
 import com.sebis.cepengineservice.entity.MappedSpan;
 import com.sebis.cepengineservice.service.exception.ValidationException;
-import org.apache.commons.lang.math.NumberUtils;
 import org.springframework.stereotype.Service;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TypedQuery;
-import javax.persistence.criteria.CriteriaBuilder;
-import javax.persistence.criteria.CriteriaQuery;
-import javax.persistence.criteria.Predicate;
-import javax.persistence.criteria.Root;
+import javax.persistence.criteria.*;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import static com.sebis.cepengineservice.dto.AggregationType.DURATION_AVERAGE;
 
 @Service
 public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
@@ -24,22 +24,60 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
     private EntityManager em;
 
     @Override
-    public Collection<MappedSpan> findByFilter(QueryDTO queryDTO) {
+    public Collection<QueryResult> findByFilter(QueryDTO queryDTO) {
         CriteriaBuilder criteriaBuilder = em.getCriteriaBuilder();
-        CriteriaQuery<MappedSpan> criteriaQuery = criteriaBuilder.createQuery(MappedSpan.class);
+        CriteriaQuery<QueryResult> criteriaQuery = criteriaBuilder.createQuery(QueryResult.class);
+        Root<MappedSpan> root = criteriaQuery.from(MappedSpan.class);
 
         if (queryDTO.getRules() != null) {
-            List<Predicate> conditions = generateConditions(queryDTO, criteriaBuilder, criteriaQuery);
+            List<Predicate> conditions = generateConditions(queryDTO, criteriaBuilder, root);
             criteriaQuery.where(conditions.toArray(new Predicate[conditions.size()]));
         }
 
-        TypedQuery<MappedSpan> q = em.createQuery(criteriaQuery);
+        if (queryDTO.getAggregationType() != null && queryDTO.getAggregationType().equals(DURATION_AVERAGE)) {
+            List<Selection> selections = generateAggregateSelections(queryDTO, criteriaBuilder, root);
+            criteriaQuery.multiselect(selections.toArray(new Selection[selections.size()]));
+            List<Expression> groupings = generateGroupings(queryDTO, root);
+            criteriaQuery.groupBy(groupings.toArray(new Expression[groupings.size()]));
+        } else {
+            List<Selection> selections = generateSelections(queryDTO, root);
+            criteriaQuery.multiselect(selections.toArray(new Selection[selections.size()]));
+        }
+
+        TypedQuery<QueryResult> q = em.createQuery(criteriaQuery);
         return q.getResultList();
     }
 
+    private List<Selection> generateSelections(QueryDTO queryDTO, Root<MappedSpan> root) {
+        return queryDTO.getColumns().stream()
+                .map(root::get)
+                .collect(Collectors.toList());
+    }
+
+    private List<Selection> generateAggregateSelections(QueryDTO queryDTO, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
+        List<Selection> selections = new ArrayList<>();
+        selections.addAll(queryDTO.getColumns().stream()
+                .map(attributeName -> {
+                    if ("duration".equals(attributeName)) {
+                        return criteriaBuilder.avg(root.get("duration"));
+                    } else {
+                        return root.get(attributeName);
+                    }
+                })
+                .collect(Collectors.toList()));
+        return selections;
+    }
+
+    private List<Expression> generateGroupings(QueryDTO queryDTO, Root<MappedSpan> root) {
+        return queryDTO.getColumns().stream()
+                .filter(column -> !column.equalsIgnoreCase("duration"))
+                .map(root::get)
+                .collect(Collectors.toList());
+    }
+
     private List<Predicate> generateConditions(QueryDTO queryDTO, CriteriaBuilder criteriaBuilder,
-                                    CriteriaQuery<MappedSpan> criteriaQuery) {
-        Root<MappedSpan> root = criteriaQuery.from(MappedSpan.class);
+                                    Root<MappedSpan> root) {
+
         List<Predicate> conditions = queryDTO.getRules().stream().map(rule -> {
             switch (rule.getOperation()) {
                 case "=": return criteriaBuilder.equal(root.get(rule.getKey()), rule.getValue());

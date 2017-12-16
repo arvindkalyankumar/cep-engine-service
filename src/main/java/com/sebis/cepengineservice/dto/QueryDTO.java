@@ -10,6 +10,7 @@ import java.util.List;
 public class QueryDTO {
     private List<String> columns;
     private List<Rule> rules;
+    private AggregationType aggregationType;
 
     @Data
     @NoArgsConstructor

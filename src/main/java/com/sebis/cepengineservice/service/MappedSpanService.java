@@ -1,6 +1,7 @@
 package com.sebis.cepengineservice.service;
 
 import com.sebis.cepengineservice.dto.QueryDTO;
+import com.sebis.cepengineservice.dto.QueryResult;
 import com.sebis.cepengineservice.entity.MappedSpan;
 import com.sebis.cepengineservice.repository.MappedSpanReadRepository;
 import com.sebis.cepengineservice.service.exception.ValidationException;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import java.lang.reflect.Field;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static com.sebis.cepengineservice.dto.AggregationType.DURATION_AVERAGE;
 
 @Service
 @Slf4j
@@ -24,11 +27,17 @@ public class MappedSpanService {
 
     public List<Map<String, Object>> query(QueryDTO queryDTO) {
         validateColumns(queryDTO);
-        Collection<MappedSpan> mappedSpans = readRepository.findByFilter(queryDTO);
-        return mappedSpans.stream()
-                .map(mappedSpan -> spanToFieldMap(queryDTO, mappedSpan))
-                .distinct()
-                .collect(Collectors.toList());
+        validateAggregation(queryDTO);
+
+        Collection<QueryResult> queryResult = readRepository.findByFilter(queryDTO);
+        return queryResult.stream().map(singleResult -> {
+            Map<String, Object> fieldMap = new HashMap<>();
+            Iterator<String> columnIterator = queryDTO.getColumns().iterator();
+            singleResult.getResults().forEach(result -> {
+                fieldMap.put(columnIterator.next(), result);
+            });
+            return fieldMap;
+        }).distinct().collect(Collectors.toList());
     }
 
     private void validateColumns(QueryDTO queryDTO) {
@@ -39,20 +48,11 @@ public class MappedSpanService {
         }
     }
 
-    private Map<String, Object> spanToFieldMap(QueryDTO queryDTO, MappedSpan mappedSpan) {
-        Map<String, Object> fieldMap = new HashMap<>();
-        queryDTO.getColumns().forEach(column -> {
-            try {
-                Field field = mappedSpan.getClass().getDeclaredField(column);
-                field.setAccessible(true);
-                fieldMap.put(column, field.get(mappedSpan));
-            } catch (Exception e) {
-                log.error("Failed to generate the result map", e);
-            }
-        });
-        if (!fieldMap.containsKey("spanId")) {
-            fieldMap.put("spanId", mappedSpan.getSpanId());
+    private void validateAggregation(QueryDTO queryDTO) {
+        if (queryDTO.getAggregationType() != null &&
+                queryDTO.getAggregationType().equals(DURATION_AVERAGE) &&
+                queryDTO.getColumns().stream().noneMatch(column -> column.equalsIgnoreCase("duration"))) {
+            throw new ValidationException("Duration column must be selected if duration_average aggregate type is chosen");
         }
-        return fieldMap;
     }
 }
