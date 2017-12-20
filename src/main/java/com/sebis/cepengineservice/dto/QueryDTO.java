@@ -15,8 +15,8 @@ public class QueryDTO {
     @Data
     @NoArgsConstructor
     public static class Rule {
-        private String key;
-        private String operation;
+        private String field;
+        private String operator;
         private String value;
     }
 }
