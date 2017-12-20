@@ -79,12 +79,12 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
                                     Root<MappedSpan> root) {
 
         List<Predicate> conditions = queryDTO.getRules().stream().map(rule -> {
-            switch (rule.getOperation()) {
-                case "=": return criteriaBuilder.equal(root.get(rule.getKey()), rule.getValue());
+            switch (rule.getOperator()) {
+                case "=": return criteriaBuilder.equal(root.get(rule.getField()), rule.getValue());
                 case ">": {
                     try {
                         Long value = Long.parseLong(rule.getValue());
-                        return criteriaBuilder.gt(root.get(rule.getKey()), value);
+                        return criteriaBuilder.gt(root.get(rule.getField()), value);
                     } catch (NumberFormatException e) {
                         throw new ValidationException(String.format("%s is not a number", rule.getValue()));
                     }
@@ -92,12 +92,12 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
                 case "<": {
                     try {
                         Long value = Long.parseLong(rule.getValue());
-                        return criteriaBuilder.lt(root.get(rule.getKey()), value);
+                        return criteriaBuilder.lt(root.get(rule.getField()), value);
                     } catch (NumberFormatException e) {
                         throw new ValidationException(String.format("%s is not a number", rule.getValue()));
                     }
                 }
-                default: throw new ValidationException(String.format("Operation \"%s\" is not supported", rule.getOperation()));
+                default: throw new ValidationException(String.format("Operation \"%s\" is not supported", rule.getOperator()));
             }
         }).collect(Collectors.toList());
         if (queryDTO.getColumns().stream().anyMatch(column -> column.equalsIgnoreCase("activity"))) {
