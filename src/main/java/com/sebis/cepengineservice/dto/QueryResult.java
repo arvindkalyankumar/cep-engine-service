@@ -1,13 +1,14 @@
 package com.sebis.cepengineservice.dto;
 
 import lombok.Data;
+import lombok.Getter;
 
 import java.util.List;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
 
-@Data
+@Getter
 public class QueryResult {
     private List<Object> results;
 

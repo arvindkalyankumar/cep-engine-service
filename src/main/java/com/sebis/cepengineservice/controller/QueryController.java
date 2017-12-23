@@ -1,6 +1,6 @@
 package com.sebis.cepengineservice.controller;
 
-import com.sebis.cepengineservice.dto.QueryDTO;
+import com.sebis.cepengineservice.dto.Query;
 import com.sebis.cepengineservice.service.MappedSpanService;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import javax.validation.Valid;
 import java.util.List;
 import java.util.Map;
 
@@ -23,7 +24,7 @@ public class QueryController {
     }
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public List<Map<String, Object>> query(@RequestBody QueryDTO query) {
+    public List<Map<String, Object>> query(@Valid @RequestBody Query query) {
         return service.query(query);
     }
 }

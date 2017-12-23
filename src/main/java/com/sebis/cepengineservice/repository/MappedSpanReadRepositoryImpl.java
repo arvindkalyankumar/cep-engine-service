@@ -1,108 +1,103 @@
 package com.sebis.cepengineservice.repository;
 
-import com.sebis.cepengineservice.dto.QueryDTO;
+import com.sebis.cepengineservice.dto.Query;
 import com.sebis.cepengineservice.dto.QueryResult;
 import com.sebis.cepengineservice.entity.MappedSpan;
 import com.sebis.cepengineservice.service.exception.ValidationException;
-import org.springframework.stereotype.Service;
+import org.springframework.stereotype.Repository;
 
 import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TypedQuery;
 import javax.persistence.criteria.*;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static com.sebis.cepengineservice.dto.AggregationType.DURATION_AVERAGE;
-
-@Service
+@Repository
 public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
 
     @PersistenceContext
     private EntityManager em;
 
     @Override
-    public Collection<QueryResult> findByFilter(QueryDTO queryDTO) {
+    public Collection<QueryResult> findByFilter(Query query) {
         CriteriaBuilder criteriaBuilder = em.getCriteriaBuilder();
         CriteriaQuery<QueryResult> criteriaQuery = criteriaBuilder.createQuery(QueryResult.class);
         Root<MappedSpan> root = criteriaQuery.from(MappedSpan.class);
 
-        if (queryDTO.getRules() != null) {
-            List<Predicate> conditions = generateConditions(queryDTO, criteriaBuilder, root);
+        List<Selection> selections = generateSelections(query, criteriaBuilder, root);
+        criteriaQuery.multiselect(selections.toArray(new Selection[selections.size()]));
+
+        if (query.getRules() != null) {
+            List<Predicate> conditions = generateConditions(query, criteriaBuilder, root);
             criteriaQuery.where(conditions.toArray(new Predicate[conditions.size()]));
         }
-
-        if (queryDTO.getAggregationType() != null && queryDTO.getAggregationType().equals(DURATION_AVERAGE)) {
-            List<Selection> selections = generateAggregateSelections(queryDTO, criteriaBuilder, root);
-            criteriaQuery.multiselect(selections.toArray(new Selection[selections.size()]));
-            List<Expression> groupings = generateGroupings(queryDTO, root);
+        if (query.getAggregations() != null) {
+            List<Expression> groupings = generateGroupings(query, root);
             criteriaQuery.groupBy(groupings.toArray(new Expression[groupings.size()]));
-        } else {
-            List<Selection> selections = generateSelections(queryDTO, root);
-            criteriaQuery.multiselect(selections.toArray(new Selection[selections.size()]));
         }
 
         TypedQuery<QueryResult> q = em.createQuery(criteriaQuery);
         return q.getResultList();
     }
 
-    private List<Selection> generateSelections(QueryDTO queryDTO, Root<MappedSpan> root) {
-        return queryDTO.getColumns().stream()
-                .map(root::get)
-                .collect(Collectors.toList());
-    }
-
-    private List<Selection> generateAggregateSelections(QueryDTO queryDTO, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
-        List<Selection> selections = new ArrayList<>();
-        selections.addAll(queryDTO.getColumns().stream()
-                .map(attributeName -> {
-                    if ("duration".equals(attributeName)) {
-                        return criteriaBuilder.avg(root.get("duration"));
+    private List<Selection> generateSelections(Query query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
+        return query.getColumns()
+                .stream()
+                .map(column -> {
+                    if (query.getAggregations() != null) {
+                        Optional<Query.Aggregation> maybeAggregation = query.getAggregations()
+                                .stream()
+                                .filter(aggr -> aggr.getField().equalsIgnoreCase(column))
+                                .findAny();
+                        if (maybeAggregation.isPresent()) {
+                            Query.Aggregation aggregation = maybeAggregation.get();
+                            switch (maybeAggregation.get().getOperation()) {
+                                case AVG:
+                                    return criteriaBuilder.avg(root.get(maybeAggregation.get().getField()));
+                                case MAX:
+                                    return criteriaBuilder.max(root.get(maybeAggregation.get().getField()));
+                                case MIN:
+                                    return criteriaBuilder.min(root.get(maybeAggregation.get().getField()));
+                                case COUNT:
+                                    return criteriaBuilder.countDistinct(root.get(maybeAggregation.get().getField()));
+                                default: {
+                                    throw new ValidationException(String.format("Aggregation \"%s\" is not supported",
+                                            aggregation.getOperation()));
+                                }
+                            }
+                        } else {
+                            return root.get(column);
+                        }
                     } else {
-                        return root.get(attributeName);
+                        return root.get(column);
                     }
-                })
-                .collect(Collectors.toList()));
-        return selections;
+                }).collect(Collectors.toList());
     }
 
-    private List<Expression> generateGroupings(QueryDTO queryDTO, Root<MappedSpan> root) {
-        return queryDTO.getColumns().stream()
-                .filter(column -> !column.equalsIgnoreCase("duration"))
+    private List<Expression> generateGroupings(Query query, Root<MappedSpan> root) {
+        return query.getColumns().stream()
+                .filter(column -> query.getAggregations()
+                        .stream()
+                        .noneMatch(aggregation -> aggregation.getField().equalsIgnoreCase(column)))
                 .map(root::get)
                 .collect(Collectors.toList());
     }
 
-    private List<Predicate> generateConditions(QueryDTO queryDTO, CriteriaBuilder criteriaBuilder,
-                                    Root<MappedSpan> root) {
-
-        List<Predicate> conditions = queryDTO.getRules().stream().map(rule -> {
+    private List<Predicate> generateConditions(Query query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
+        return query.getRules().stream().map(rule -> {
             switch (rule.getOperator()) {
-                case "=": return criteriaBuilder.equal(root.get(rule.getField()), rule.getValue());
-                case ">": {
-                    try {
-                        Long value = Long.parseLong(rule.getValue());
-                        return criteriaBuilder.gt(root.get(rule.getField()), value);
-                    } catch (NumberFormatException e) {
-                        throw new ValidationException(String.format("%s is not a number", rule.getValue()));
-                    }
-                }
-                case "<": {
-                    try {
-                        Long value = Long.parseLong(rule.getValue());
-                        return criteriaBuilder.lt(root.get(rule.getField()), value);
-                    } catch (NumberFormatException e) {
-                        throw new ValidationException(String.format("%s is not a number", rule.getValue()));
-                    }
-                }
-                default: throw new ValidationException(String.format("Operation \"%s\" is not supported", rule.getOperator()));
+                case "=":
+                    return criteriaBuilder.equal(root.get(rule.getField()), rule.getValue());
+                case "!=":
+                    return criteriaBuilder.notEqual(root.get(rule.getField()), rule.getValue());
+                case "contains":
+                    return criteriaBuilder.like(root.get(rule.getField()), "%".concat(rule.getValue()).concat("%"));
+                default:
+                    throw new ValidationException(String.format("Operation \"%s\" is not supported", rule.getOperator()));
             }
         }).collect(Collectors.toList());
-        if (queryDTO.getColumns().stream().anyMatch(column -> column.equalsIgnoreCase("activity"))) {
-            conditions.add(criteriaBuilder.isNull(root.get("parentId")));
-        }
-        return conditions;
     }
 }
