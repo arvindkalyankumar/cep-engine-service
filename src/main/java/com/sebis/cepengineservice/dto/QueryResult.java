@@ -1,6 +1,5 @@
 package com.sebis.cepengineservice.dto;
 
-import lombok.Data;
 import lombok.Getter;
 
 import java.util.List;

@@ -10,6 +10,7 @@ import javax.persistence.EntityManager;
 import javax.persistence.PersistenceContext;
 import javax.persistence.TypedQuery;
 import javax.persistence.criteria.*;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
@@ -22,7 +23,7 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
     private EntityManager em;
 
     @Override
-    public Collection<QueryResult> findByFilter(Query query) {
+    public Collection<QueryResult> findByFilter(Query query, long fromTimestamp, long tillTimestamp) {
         CriteriaBuilder criteriaBuilder = em.getCriteriaBuilder();
         CriteriaQuery<QueryResult> criteriaQuery = criteriaBuilder.createQuery(QueryResult.class);
         Root<MappedSpan> root = criteriaQuery.from(MappedSpan.class);
@@ -30,10 +31,9 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
         List<Selection> selections = generateSelections(query, criteriaBuilder, root);
         criteriaQuery.multiselect(selections.toArray(new Selection[selections.size()]));
 
-        if (query.getRules() != null) {
-            List<Predicate> conditions = generateConditions(query, criteriaBuilder, root);
-            criteriaQuery.where(conditions.toArray(new Predicate[conditions.size()]));
-        }
+        List<Predicate> conditions = generateConditions(query, criteriaBuilder, root, fromTimestamp, tillTimestamp);
+        criteriaQuery.where(conditions.toArray(new Predicate[conditions.size()]));
+
         if (query.getAggregations() != null) {
             List<Expression> groupings = generateGroupings(query, root);
             criteriaQuery.groupBy(groupings.toArray(new Expression[groupings.size()]));
@@ -77,6 +77,31 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
                 }).collect(Collectors.toList());
     }
 
+    private List<Predicate> generateConditions(Query query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root,
+                                               long fromTimestamp, long tillTimestamp) {
+        List<Predicate> conditions = new ArrayList<>();
+        if (query.getRules() != null) {
+            conditions.addAll(
+                    query.getRules().stream().map(rule -> {
+                        switch (rule.getOperator()) {
+                            case "=":
+                                return criteriaBuilder.equal(root.get(rule.getField()), rule.getValue());
+                            case "!=":
+                                return criteriaBuilder.notEqual(root.get(rule.getField()), rule.getValue());
+                            case "contains":
+                                return criteriaBuilder.like(root.get(rule.getField()), "%".concat(rule.getValue()).concat("%"));
+                            default:
+                                throw new ValidationException(String.format("Operation \"%s\" is not supported",
+                                        rule.getOperator()));
+                        }
+                    }).collect(Collectors.toList())
+            );
+        }
+        conditions.add(criteriaBuilder.greaterThanOrEqualTo(root.get("timestamp"), fromTimestamp));
+        conditions.add(criteriaBuilder.lessThanOrEqualTo(root.get("timestamp"), tillTimestamp));
+        return conditions;
+    }
+
     private List<Expression> generateGroupings(Query query, Root<MappedSpan> root) {
         return query.getColumns().stream()
                 .filter(column -> query.getAggregations()
@@ -84,20 +109,5 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
                         .noneMatch(aggregation -> aggregation.getField().equalsIgnoreCase(column)))
                 .map(root::get)
                 .collect(Collectors.toList());
-    }
-
-    private List<Predicate> generateConditions(Query query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
-        return query.getRules().stream().map(rule -> {
-            switch (rule.getOperator()) {
-                case "=":
-                    return criteriaBuilder.equal(root.get(rule.getField()), rule.getValue());
-                case "!=":
-                    return criteriaBuilder.notEqual(root.get(rule.getField()), rule.getValue());
-                case "contains":
-                    return criteriaBuilder.like(root.get(rule.getField()), "%".concat(rule.getValue()).concat("%"));
-                default:
-                    throw new ValidationException(String.format("Operation \"%s\" is not supported", rule.getOperator()));
-            }
-        }).collect(Collectors.toList());
     }
 }

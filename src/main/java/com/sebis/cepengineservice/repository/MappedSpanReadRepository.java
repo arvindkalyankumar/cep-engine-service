@@ -6,5 +6,5 @@ import com.sebis.cepengineservice.dto.QueryResult;
 import java.util.Collection;
 
 public interface MappedSpanReadRepository {
-    Collection<QueryResult> findByFilter(Query query);
+    Collection<QueryResult> findByFilter(Query query, long fromTimestamp, long tillTimestamp);
 }
