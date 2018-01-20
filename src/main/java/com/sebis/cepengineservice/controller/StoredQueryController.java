@@ -20,7 +20,7 @@ public class StoredQueryController {
     private StoredQueryService storedQueryService;
 
     @Autowired
-    public StoredQueryController(@Valid StoredQueryService storedQueryService) {
+    public StoredQueryController(StoredQueryService storedQueryService) {
         this.storedQueryService = storedQueryService;
     }
 
@@ -36,7 +36,7 @@ public class StoredQueryController {
 
     @PostMapping(consumes = MediaType.APPLICATION_JSON_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
-    public String save(@RequestBody StoredQueryDto dto) {
+    public String save(@RequestBody @Valid StoredQueryDto dto) {
         return storedQueryService.save(dto);
     }
 
