@@ -8,7 +8,7 @@ import java.util.List;
 
 @Data
 @NoArgsConstructor
-public class Query {
+public class QueryDto {
     @NotNull
     private List<String> columns;
     private List<Rule> rules;

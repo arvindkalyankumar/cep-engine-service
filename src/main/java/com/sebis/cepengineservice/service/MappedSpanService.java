@@ -1,7 +1,7 @@
 package com.sebis.cepengineservice.service;
 
-import com.sebis.cepengineservice.dto.Query;
-import com.sebis.cepengineservice.dto.QueryResult;
+import com.sebis.cepengineservice.dto.QueryDto;
+import com.sebis.cepengineservice.dto.QueryResultDto;
 import com.sebis.cepengineservice.repository.MappedSpanReadRepository;
 import com.sebis.cepengineservice.service.exception.ValidationException;
 import lombok.extern.slf4j.Slf4j;
@@ -21,12 +21,12 @@ public class MappedSpanService {
         this.readRepository = readRepository;
     }
 
-    public List<Map<String, Object>> query(Query query) {
+    public List<Map<String, Object>> query(QueryDto query) {
         List<Map<String, Object>> finalResult = new ArrayList<>();
         for (int i = 0; i < query.getTimeSlots(); i++) {
             long fromTimestamp = (System.currentTimeMillis() - (i + 1) * query.getTimeSlotDuration() * 1000) * 1000;
             long tillTimestamp = (System.currentTimeMillis() - i * query.getTimeSlotDuration() * 1000) * 1000;
-            Collection<QueryResult> queryResult;
+            Collection<QueryResultDto> queryResult;
             try {
                 queryResult = readRepository.findByFilter(query, fromTimestamp, tillTimestamp);
             } catch (Exception e) {
@@ -40,7 +40,7 @@ public class MappedSpanService {
         return finalResult;
     }
 
-    private List<Map<String, Object>> map(Collection<QueryResult> queryResult, Query query) {
+    private List<Map<String, Object>> map(Collection<QueryResultDto> queryResult, QueryDto query) {
         return queryResult.stream().map(singleResult -> {
             Map<String, Object> fieldMap = new HashMap<>();
             Iterator<String> columnIterator = query.getColumns().iterator();

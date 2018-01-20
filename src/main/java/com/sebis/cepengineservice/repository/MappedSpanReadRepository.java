@@ -1,10 +1,10 @@
 package com.sebis.cepengineservice.repository;
 
-import com.sebis.cepengineservice.dto.Query;
-import com.sebis.cepengineservice.dto.QueryResult;
+import com.sebis.cepengineservice.dto.QueryDto;
+import com.sebis.cepengineservice.dto.QueryResultDto;
 
 import java.util.Collection;
 
 public interface MappedSpanReadRepository {
-    Collection<QueryResult> findByFilter(Query query, long fromTimestamp, long tillTimestamp);
+    Collection<QueryResultDto> findByFilter(QueryDto query, long fromTimestamp, long tillTimestamp);
 }
