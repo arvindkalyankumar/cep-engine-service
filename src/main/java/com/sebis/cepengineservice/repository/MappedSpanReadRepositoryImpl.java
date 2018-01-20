@@ -1,7 +1,7 @@
 package com.sebis.cepengineservice.repository;
 
-import com.sebis.cepengineservice.dto.Query;
-import com.sebis.cepengineservice.dto.QueryResult;
+import com.sebis.cepengineservice.dto.QueryDto;
+import com.sebis.cepengineservice.dto.QueryResultDto;
 import com.sebis.cepengineservice.entity.MappedSpan;
 import com.sebis.cepengineservice.service.exception.ValidationException;
 import org.springframework.stereotype.Repository;
@@ -23,9 +23,9 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
     private EntityManager em;
 
     @Override
-    public Collection<QueryResult> findByFilter(Query query, long fromTimestamp, long tillTimestamp) {
+    public Collection<QueryResultDto> findByFilter(QueryDto query, long fromTimestamp, long tillTimestamp) {
         CriteriaBuilder criteriaBuilder = em.getCriteriaBuilder();
-        CriteriaQuery<QueryResult> criteriaQuery = criteriaBuilder.createQuery(QueryResult.class);
+        CriteriaQuery<QueryResultDto> criteriaQuery = criteriaBuilder.createQuery(QueryResultDto.class);
         Root<MappedSpan> root = criteriaQuery.from(MappedSpan.class);
 
         List<Selection> selections = generateSelections(query, criteriaBuilder, root);
@@ -39,21 +39,21 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
             criteriaQuery.groupBy(groupings.toArray(new Expression[groupings.size()]));
         }
 
-        TypedQuery<QueryResult> q = em.createQuery(criteriaQuery);
+        TypedQuery<QueryResultDto> q = em.createQuery(criteriaQuery);
         return q.getResultList();
     }
 
-    private List<Selection> generateSelections(Query query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
+    private List<Selection> generateSelections(QueryDto query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
         return query.getColumns()
                 .stream()
                 .map(column -> {
                     if (query.getAggregations() != null) {
-                        Optional<Query.Aggregation> maybeAggregation = query.getAggregations()
+                        Optional<QueryDto.Aggregation> maybeAggregation = query.getAggregations()
                                 .stream()
                                 .filter(aggr -> aggr.getField().equalsIgnoreCase(column))
                                 .findAny();
                         if (maybeAggregation.isPresent()) {
-                            Query.Aggregation aggregation = maybeAggregation.get();
+                            QueryDto.Aggregation aggregation = maybeAggregation.get();
                             switch (maybeAggregation.get().getOperation()) {
                                 case AVG:
                                     return criteriaBuilder.avg(root.get(maybeAggregation.get().getField()));
@@ -77,7 +77,7 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
                 }).collect(Collectors.toList());
     }
 
-    private List<Predicate> generateConditions(Query query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root,
+    private List<Predicate> generateConditions(QueryDto query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root,
                                                long fromTimestamp, long tillTimestamp) {
         List<Predicate> conditions = new ArrayList<>();
         if (query.getRules() != null) {
@@ -102,7 +102,7 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
         return conditions;
     }
 
-    private List<Expression> generateGroupings(Query query, Root<MappedSpan> root) {
+    private List<Expression> generateGroupings(QueryDto query, Root<MappedSpan> root) {
         return query.getColumns().stream()
                 .filter(column -> query.getAggregations()
                         .stream()
