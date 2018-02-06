@@ -1,15 +1,23 @@
 package com.sebis.cepengineservice.service;
 
-import com.sebis.cepengineservice.dto.QueryDto;
-import com.sebis.cepengineservice.dto.QueryResultDto;
-import com.sebis.cepengineservice.repository.MappedSpanReadRepository;
-import com.sebis.cepengineservice.service.exception.ValidationException;
-import lombok.extern.slf4j.Slf4j;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import com.sebis.cepengineservice.dto.QueryDto;
+import com.sebis.cepengineservice.dto.QueryResultDto;
+import com.sebis.cepengineservice.entity.MappedSpan;
+import com.sebis.cepengineservice.repository.MappedSpanReadRepository;
+import com.sebis.cepengineservice.service.exception.ValidationException;
+
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @Slf4j
@@ -38,6 +46,10 @@ public class MappedSpanService {
             finalResult.addAll(timeSlotResult);
         }
         return finalResult;
+    }
+    
+    public List<Map<String, Object>> sqlQuery(String query) {
+         return readRepository.findBySql(query);
     }
 
     private List<Map<String, Object>> map(Collection<QueryResultDto> queryResult, QueryDto query) {

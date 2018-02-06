@@ -1,20 +1,30 @@
 package com.sebis.cepengineservice.repository;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
+import javax.persistence.Query;
+import javax.persistence.TypedQuery;
+import javax.persistence.criteria.CriteriaBuilder;
+import javax.persistence.criteria.CriteriaQuery;
+import javax.persistence.criteria.Expression;
+import javax.persistence.criteria.Predicate;
+import javax.persistence.criteria.Root;
+import javax.persistence.criteria.Selection;
+
+import org.springframework.stereotype.Repository;
+
 import com.sebis.cepengineservice.dto.QueryDto;
 import com.sebis.cepengineservice.dto.QueryResultDto;
 import com.sebis.cepengineservice.entity.MappedSpan;
 import com.sebis.cepengineservice.service.exception.ValidationException;
-import org.springframework.stereotype.Repository;
-
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
-import javax.persistence.TypedQuery;
-import javax.persistence.criteria.*;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
-import java.util.stream.Collectors;
 
 @Repository
 public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
@@ -42,8 +52,38 @@ public class MappedSpanReadRepositoryImpl implements MappedSpanReadRepository {
         TypedQuery<QueryResultDto> q = em.createQuery(criteriaQuery);
         return q.getResultList();
     }
+    
+    @Override
+    public List<Map<String, Object>> findBySql(String query) {
+    		List<Map<String, Object>> finalResult = new ArrayList<Map<String, Object>>();
+    		String[] columns = getColumnNames(query);
+        Query q = em.createNativeQuery(query);
+        Map<String, Object> map = new HashMap<String, Object>();
+        List resultList = q.getResultList();
+        if (columns.length > 1) {
+	        	for (Object result: resultList) {
+	    			map = new HashMap<String, Object>();
+            		for (int i= 0; i< columns.length; i++) {
+            			map.put(columns[i].trim(), ((Object[])result)[i]);
+            		}
+            		finalResult.add(map);
+	         }
+        } else {
+	        	for (Object result: resultList) {
+	    			map = new HashMap<String, Object>();
+        			map.put(columns[0], result);
+            		finalResult.add(map);
+	         }
+        }
+        
+        return finalResult;
+    }
 
-    private List<Selection> generateSelections(QueryDto query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
+    private String[] getColumnNames(String query) {
+    		return query.toLowerCase().split("from")[0].split("select")[1].split(",");
+	}
+
+	private List<Selection> generateSelections(QueryDto query, CriteriaBuilder criteriaBuilder, Root<MappedSpan> root) {
         return query.getColumns()
                 .stream()
                 .map(column -> {
